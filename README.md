@@ -25,6 +25,12 @@ Si gioca su una scacchiera 3x3, con le pedine disposte come in figura:
 
 Il giocatore umano muove le pedine bianche ed inizia la partita; l'algoritmo muove le pedine nere.
 
+I movimenti sono analoghi a quelli dei pedoni di scacchi, quindi:
+
+* Avanzamento di una casella in avanti (se libera), oppure
+* Avanzamento di una casella in diagonale, se occupata da una pedina avversaria, con cattura di quest'ultima
+* Non sono permessi *en-passant* o movimenti in avanti di due caselle
+
 L'obiettivo del gioco è:
 
 * Catturare tutte le pedine dell'avversario, oppure
