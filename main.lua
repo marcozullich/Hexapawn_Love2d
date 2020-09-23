@@ -1,5 +1,20 @@
 io.stdout:setvbuf("no")
 
+function HSV(h, s, v)
+    if s <= 0 then return v,v,v end
+    h, s, v = h/256*6, s/255, v/255
+    local c = v*s
+    local x = (1-math.abs((h%2)-1))*c
+    local m,r,g,b = (v-c), 0,0,0
+    if h < 1     then r,g,b = c,x,0
+    elseif h < 2 then r,g,b = x,c,0
+    elseif h < 3 then r,g,b = 0,c,x
+    elseif h < 4 then r,g,b = 0,x,c
+    elseif h < 5 then r,g,b = x,0,c
+    else              r,g,b = c,0,x
+    end return (r+m)*255,(g+m)*255,(b+m)*255
+end
+
 function init_board(top_x, top_y, side, pawn_radius)
     BOARD = {
         top_x = top_x,
@@ -273,7 +288,6 @@ function check_victorious_move(pawn_move)
 end
 
 function insert_db_moves(board_repr)
-    print("Inserting for board " .. board_repr)
 
     moves_current = {}
     moves_symmetric = {}
@@ -305,32 +319,26 @@ function compare_db_moves(first, second)
        and first.destination[1] == second.destination[1] and first.destination[2] == second.destination[2])
 end
 
+
 function filter_possible_moves(board_repr)
-    -- possible moves is an array of the shape
-    -- {{pawn_id = , destination = }, ...}
-    possible_moves = {}
+
+    local possible_moves = {}
+    local impossible_moves = {} 
 
     for i, mv in ipairs(DB_MOVES[board_repr]) do
         if mv.enabled then
             table.insert(possible_moves, {origin = mv.origin, destination = mv.destination})
+        else
+            table.insert(impossible_moves,  {origin = mv.origin, destination = mv.destination})
         end
     end
 
-    -- print("POSSIBLE MOVES")
-    -- for i, mv in ipairs(possible_moves) do
-    --     print(mv.origin[1], mv.origin[2], mv.destination[1], mv.destination[2])
-    -- end
-    return possible_moves
+    return {possible_moves, impossible_moves}
 end
 
 function select_move_black()
     -- get configuration as a string
-    board_repr = board_cells_coord_to_string()
-    print("Board repr obtained " .. board_repr, "KEYS PRESENT:")
-
-    for k,v in pairs(DB_MOVES) do
-        print(k)
-    end
+    board_repr = board_cells_coord_to_string()  
 
     -- if moves for the corresponding configuration do not exist, create a db entry for self and symmetric
     if DB_MOVES[board_repr] == nil then
@@ -338,29 +346,31 @@ function select_move_black()
     end
 
     -- select enabled moves
-    possible_moves = filter_possible_moves(board_repr)
+    local all_moves = filter_possible_moves(board_repr)
+    local possible_moves = all_moves[1]
+    local impossible_moves = all_moves[2]
 
     if #possible_moves > 0 then
         move_id = love.math.random(#possible_moves)
-        -- print("Extracted", move_id)
-        return {move=possible_moves[move_id], repr=board_repr}
+        return possible_moves, impossible_moves, move_id -- move=possible_moves[move_id] --, repr=board_repr}
     end
     return nil
 end
 
-function move_black()
-    selected_move = select_move_black()
-    local orig_dest = selected_move.move
+function move_black(selected_move)
+    -- selected_move = select_move_black(animate)
+    local orig_dest = selected_move --.move
     
     if orig_dest == nil then -- no possible move
         end_game(1)
     else
-        origin = orig_dest.origin
-        moving_pawn = get_pawn_cell(origin[1], origin[2])
-        destination = orig_dest.destination
-        destination_status = {get_pawn_cell(destination[1], destination[2]), destination}
+        local origin = orig_dest.origin
+        local moving_pawn = get_pawn_cell(origin[1], origin[2])
+        local destination = orig_dest.destination
+        local destination_status = {get_pawn_cell(destination[1], destination[2]), destination}
+        local current_repr = board_cells_coord_to_string()
         execute_move(origin, destination_status, moving_pawn)
-        BLACK_LAST_MOVE = selected_move
+        BLACK_LAST_MOVE = {move = selected_move, repr = current_repr}
         if check_victorious_move(moving_pawn) then
             end_game(2)
         end
@@ -372,10 +382,13 @@ function log(text, color)
     if color == nil then
         color = COLOR_LOG_TEXT
     end
-    local xtext = LOG_MSG_X
-    local ytext = LOG_MSG_Y + LOG_MSG_YDIFF * (LOG_N)
-    LOG_N = LOG_N + 1
-    table.insert(LOG_MESSAGES, {x=xtext, y=ytext, text=text, color=color})
+
+    if LOG_N < LOG_N_MAX then
+        LOG_N = LOG_N + 1
+    else 
+        table.remove(LOG_MESSAGES, 1)
+    end
+    table.insert(LOG_MESSAGES, {text=text, color=color})
 end
 
 function end_move()
@@ -465,7 +478,7 @@ function init_all()
     BLACK_LAST_MOVE = {}
 
     LOG_X = 400
-    LOG_Y = 100
+    LOG_Y = top_y
     LOG_LEN = 300
     LOG_HEI = 300
     LOG_MSG_X = LOG_X + 10
@@ -473,11 +486,22 @@ function init_all()
     LOG_MSG_YDIFF = 20
     LOG_N = 0
     LOG_MESSAGES = {}
+    LOG_N_MAX = math.floor(LOG_HEI / LOG_MSG_YDIFF) - 1
 
     STATS_X = LOG_X + 10
     STATS_Y = LOG_Y + LOG_HEI + 20
     STATS_YDIFF = 25
     love.math.setRandomSeed( love.timer.getTime()*1000 )
+
+    BTN_RESET_X = top_x + 85
+    BTN_RESET_Y = top_y + 3*block_side + 25
+    BTN_RESET_LEN = 47
+    BTN_RESET_HEI = 20
+
+    BTN_CONTINUE_X = BTN_RESET_X + BTN_RESET_LEN + 15
+    BTN_CONTINUE_Y = BTN_RESET_Y
+    BTN_CONTINUE_LEN = 70
+    BTN_CONTINUE_HEI = 20
 
     init_game()
 end
@@ -491,6 +515,10 @@ function init_game()
     MOVE_ID = 0
     GAME_ENDED = false
     CAN_MOVE_BLACK = true
+    SELECTED_MOVE = nil
+    MOVE_TRIVIAL = false
+
+    ARROWS = {}
 end
 
 function love.load()
@@ -508,25 +536,27 @@ function love.load()
     COLOR_LOG_EDGE = BLACK
     COLOR_LOG_TEXT = BLACK
 
+    COLOR_IMPOSSIBLE_MOVE = {0.3, 0.3, 0.3, 0.5}
+    COLOR_POSSIBLE_MOVE = {20/255, 8/255, 130/255}
+    COLOR_DISCARDED_MOVE = {20/255, 8/255, 130/255, 0.3}
+
     COLOR_DEFEAT = {1, 0, 0}
+
+    DEFAULT_LINE_WIDTH = 1
+
+    DT_ALL_MOVES_ARROW_ANIMATION = 1.25
+    DT_SELECT_MOVE_ARROW_ANIMATION = 1.25
     
     love.graphics.setBackgroundColor(COLOR_BACKGROUND)
 
     init_all()
 end
 
-function draw_btn()
-    love.graphics.setColor(BLACK)
-    love.graphics.rectangle("fill", 10, 550, 50, 20)
-    love.graphics.setColor(WHITE)
-    love.graphics.print("canmove", 12, 552)
-end
-
 function draw_restart()
     love.graphics.setColor(COLOR_BTN_ENABLED)
-    love.graphics.rectangle("fill", 80, 550, 60, 20)
+    love.graphics.rectangle("fill", BTN_RESET_X, BTN_RESET_Y, BTN_RESET_LEN, BTN_RESET_HEI)
     love.graphics.setColor(WHITE)
-    love.graphics.print("RESET", 82, 552)
+    love.graphics.print("RESET", BTN_RESET_X+4, BTN_RESET_Y+2)
 end
 
 function draw_continue()
@@ -535,9 +565,9 @@ function draw_continue()
     else
         love.graphics.setColor(COLOR_BTN_DISABLED)
     end
-    love.graphics.rectangle("fill", 160, 550, 70, 20)
+    love.graphics.rectangle("fill", BTN_CONTINUE_X, BTN_CONTINUE_Y, BTN_CONTINUE_LEN, BTN_CONTINUE_HEI)
     love.graphics.setColor(WHITE)
-    love.graphics.print("CONTINUA", 162, 552)
+    love.graphics.print("CONTINUA", BTN_CONTINUE_X+3, BTN_CONTINUE_Y+2)
 end
 
 function draw_log_container()
@@ -548,7 +578,9 @@ end
 function draw_log_messages()
     for i,msg in ipairs(LOG_MESSAGES) do
         love.graphics.setColor(msg.color)
-        love.graphics.print(msg.text, msg.x, msg.y)
+        local xtext = LOG_MSG_X
+        local ytext = LOG_MSG_Y + (i-1) * LOG_MSG_YDIFF
+        love.graphics.print(msg.text, xtext, ytext)
     end
 end
 
@@ -569,16 +601,81 @@ function draw_stats()
     love.graphics.print(statline3, STATS_X, STATS_Y + 2*STATS_YDIFF)
 end
 
+function draw_arrow(arrow)
+    if arrow.to_x == arrow.from_x + BOARD.side then
+        arrow.to_x = arrow.to_x - 3
+    elseif arrow.to_x == arrow.from_x - BOARD.side then
+        arrow.to_x = arrow.to_x + 3
+    end
+    love.graphics.setColor(arrow.color)
+    love.graphics.setLineWidth(2)
+    love.graphics.line(arrow.from_x, arrow.from_y, arrow.to_x, arrow.to_y)
+    local angle = math.atan2(arrow.from_y - arrow.to_y, arrow.from_x - arrow.to_x)
+    local ang1 = angle + math.pi/4
+    local ang2 = angle - math.pi/4
+    local vertex1_arr_x = arrow.to_x + arrow.point_length*math.cos(ang1)
+    local vertex1_arr_y = arrow.to_y + arrow.point_length*math.sin(ang1)
+    local vertex2_arr_x = arrow.to_x + arrow.point_length*math.cos(ang2)
+    local vertex2_arr_y = arrow.to_y + arrow.point_length*math.sin(ang2)
+    if arrow.type_arrow == nil or arrow.type_arrow == "fill" then
+        love.graphics.polygon("fill", arrow.to_x, arrow.to_y, vertex1_arr_x, vertex1_arr_y, vertex2_arr_x, vertex2_arr_y)
+    elseif arrow.type_arrow == "line" then
+        love.graphics.line(arrow.to_x, arrow.to_y, vertex1_arr_x, vertex1_arr_y)
+        love.graphics.line(arrow.to_x, arrow.to_y, vertex2_arr_x, vertex2_arr_y)
+    else
+        love.errorhandler("In draw_arrow, type_arrow needs to be either 'line' or 'fill'. Found " .. arrow.type_arrow)
+    end
+    love.graphics.setLineWidth(DEFAULT_LINE_WIDTH)
+end
+
+function draw_arrows()
+    for i,arr in ipairs(ARROWS) do
+        draw_arrow(arr)
+    end
+end
+
+function create_arrows(possible_moves, impossible_moves, select_id)
+    -- local selected_move = possible_moves[select_id]
+    for i,p in ipairs(possible_moves) do
+        from_ = center_of_cell(p.origin[1], p.origin[2])
+        to_ = center_of_cell(p.destination[1], p.destination[2])
+        move_selected = i==select_id
+        table.insert(ARROWS,{
+            from_x = from_[1], from_y = from_[2], to_x = to_[1], to_y = to_[2],
+            point_length = 10, color = COLOR_POSSIBLE_MOVE, type_arrow = "line",
+            move_selected = move_selected
+        })
+    end
+    for i,p in ipairs(impossible_moves) do
+        from_ = center_of_cell(p.origin[1], p.origin[2])
+        to_ = center_of_cell(p.destination[1], p.destination[2])
+        table.insert(ARROWS,{
+            from_x = from_[1], from_y = from_[2], to_x = to_[1], to_y = to_[2],
+            point_length = 10, color = COLOR_IMPOSSIBLE_MOVE, type_arrow = "line",
+            move_selected = false
+        })
+    end
+end
+
+function update_arrows()
+    for i,arr in ipairs(ARROWS) do
+        if arr.color == COLOR_POSSIBLE_MOVE then
+            if not arr.move_selected then
+                arr.color = COLOR_DISCARDED_MOVE
+            end
+        end
+    end
+end
 
 function love.draw()
     draw_checkerboard()
     draw_pawns()
-    -- draw_btn()
     draw_restart()
     draw_continue()
     draw_log_container()
     draw_log_messages()
     draw_stats()
+    draw_arrows()
 end
 
 function love.mousepressed(x, y, button)
@@ -600,10 +697,6 @@ function love.mousepressed(x, y, button)
                 end
             end
         end
-        -- --canmove
-        -- if y>550 and y<570 and x>10 and x<60 then
-        --     CAN_MOVE_BLACK = not CAN_MOVE_BLACK
-        -- end
 
         --restart
         if y>500 and y<570 and x>80 and x<140 then
@@ -612,7 +705,6 @@ function love.mousepressed(x, y, button)
         --continue
         if y>550 and y<570 and x>160 and x<230 and GAME_ENDED then
             init_game()
-            debug_print_DB()
         end
     end
 end
@@ -648,8 +740,45 @@ function love.update(dt)
         pawn.ctr_x = love.mouse.getX() - DRAGGING_STATS.diffx
         pawn.ctr_y = love.mouse.getY() - DRAGGING_STATS.diffy
     end
+    -- black move
     if TURN == BLACK and CAN_MOVE_BLACK and not GAME_ENDED then
-        move_black()
+        if time_passed == nil then
+            -- initialize timer
+            time_passed = 0
+            -- select move and get possible and impossible moves
+            local possible_moves, impossible_moves, selected_id = select_move_black(true)
+            -- exists possible move
+            if possible_moves ~= nil then
+                if #possible_moves == 1 then
+                    -- trivial move -> skip move selection animation
+                    MOVE_TRIVIAL = true
+                    time_passed = DT_ALL_MOVES_ARROW_ANIMATION
+                end
+                SELECTED_MOVE = possible_moves[selected_id]
+                -- crate arrows for moves: light gray = disabled, solid blue = enabled
+                create_arrows(possible_moves, impossible_moves, selected_id)
+            else
+                -- skip directly to move_black
+                time = DT_ALL_MOVES_ARROW_ANIMATION + DT_SELECT_MOVE_ARROW_ANIMATION
+            end
+        else
+            -- increase timer
+            time_passed = time_passed + dt
+        end
+
+        -- fade out the unselected moves, leave only the selected one solid
+        if time_passed >= DT_ALL_MOVES_ARROW_ANIMATION and not MOVE_TRIVIAL then
+            update_arrows()
+        end
+
+        -- remove arrows, execute selected move, reset timers and other variables
+        if time_passed >= DT_ALL_MOVES_ARROW_ANIMATION + DT_SELECT_MOVE_ARROW_ANIMATION then
+            ARROWS = {}
+            move_black(SELECTED_MOVE)
+            time_passed = nil
+            SELECTED_MOVE = nil
+            MOVE_TRIVIAL = false
+        end
     end
 end
 
