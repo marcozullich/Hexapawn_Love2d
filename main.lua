@@ -463,10 +463,10 @@ function draw_pawns()
 end
 
 function init_all()
-    local top_x = 50
-    local top_y = 50
-    local block_side = 100
-    local pawn_radius = block_side * 0.4  
+    local top_x = 50 * SCALING_FACTOR
+    local top_y = 50 * SCALING_FACTOR
+    local block_side = 100 * SCALING_FACTOR
+    local pawn_radius = block_side * 0.4
 
     BOARD = {}
     init_board(top_x, top_y, block_side, pawn_radius)
@@ -477,31 +477,31 @@ function init_all()
     DB_MOVES = {}
     BLACK_LAST_MOVE = {}
 
-    LOG_X = 400
+    LOG_X = 400 * SCALING_FACTOR
     LOG_Y = top_y
-    LOG_LEN = 300
-    LOG_HEI = 300
-    LOG_MSG_X = LOG_X + 10
-    LOG_MSG_Y = LOG_Y + 10
-    LOG_MSG_YDIFF = 20
+    LOG_LEN = 300 * SCALING_FACTOR
+    LOG_HEI = 300 * SCALING_FACTOR
+    LOG_MSG_X = LOG_X + 10 * SCALING_FACTOR
+    LOG_MSG_Y = LOG_Y + 10 * SCALING_FACTOR
+    LOG_MSG_YDIFF = 20 * SCALING_FACTOR
     LOG_N = 0
     LOG_MESSAGES = {}
     LOG_N_MAX = math.floor(LOG_HEI / LOG_MSG_YDIFF) - 1
 
-    STATS_X = LOG_X + 10
-    STATS_Y = LOG_Y + LOG_HEI + 20
-    STATS_YDIFF = 25
+    STATS_X = LOG_X + 10 * SCALING_FACTOR
+    STATS_Y = LOG_Y + LOG_HEI + 20 * SCALING_FACTOR
+    STATS_YDIFF = 25 * SCALING_FACTOR
     love.math.setRandomSeed( love.timer.getTime()*1000 )
 
-    BTN_RESET_X = top_x + 85
-    BTN_RESET_Y = top_y + 3*block_side + 25
-    BTN_RESET_LEN = 47
-    BTN_RESET_HEI = 20
+    BTN_RESET_X = top_x + 85 * SCALING_FACTOR
+    BTN_RESET_Y = top_y + 3 * block_side + 25 * SCALING_FACTOR
+    BTN_RESET_LEN = 47 * SCALING_FACTOR
+    BTN_RESET_HEI = 50 * SCALING_FACTOR
 
-    BTN_CONTINUE_X = BTN_RESET_X + BTN_RESET_LEN + 15
+    BTN_CONTINUE_X = BTN_RESET_X + BTN_RESET_LEN + 15 * SCALING_FACTOR
     BTN_CONTINUE_Y = BTN_RESET_Y
-    BTN_CONTINUE_LEN = 70
-    BTN_CONTINUE_HEI = 20
+    BTN_CONTINUE_LEN = 70 * SCALING_FACTOR
+    BTN_CONTINUE_HEI = 50 * SCALING_FACTOR
 
     init_game()
 end
@@ -519,6 +519,19 @@ function init_game()
     MOVE_TRIVIAL = false
 
     ARROWS = {}
+
+end
+
+function initialize_scaling_factor()
+    MAX_SCALING_FACTOR = 2
+    local ideal_width = 800
+    local ideal_heigh = 500
+
+    local current_width = love.graphics.getWidth()
+    local current_height = love.graphics.getHeight()
+
+    SCALING_FACTOR = math.min(current_width/ideal_width, current_height/ideal_heigh, MAX_SCALING_FACTOR)
+    print("SCALING FACTOR", SCALING_FACTOR)
 end
 
 function love.load()
@@ -549,14 +562,25 @@ function love.load()
     
     love.graphics.setBackgroundColor(COLOR_BACKGROUND)
 
+    local count = love.window.getDisplayCount() -- Not sure you need this at all; maybe for sanity checks regarding the below comment.
+    local currentDisplay = 1 -- You speficy which display you want the window to open at; this should be only relevant if you're actually saving this to a file, so on reload, it can show the window on the display you last left the window on, for example.
+    --local width, height = love.window.getDesktopDimensions(currentDisplay) -- You don't need this because of the below comment.
+    love.window.setMode(0, 0, {display = currentDisplay, fullscreen = true}) -- From the wiki: "If width or height is 0, setMode will use the width and height of the desktop.". The fullscreen mode defaults to "deskop fullscreen", which is better than exclusive fullscreen, especially when people might have more screens. Also, the screen the window will first pop up is completely irrelevant, since you don't know the layout of the screens that make out the whole desktop.
+
+    initialize_scaling_factor()
+
+
+
     init_all()
+
+    print(BTN_RESET_X, BTN_RESET_X+BTN_RESET_LEN, BTN_RESET_Y, BTN_RESET_Y+BTN_RESET_LEN)
 end
 
 function draw_restart()
     love.graphics.setColor(COLOR_BTN_ENABLED)
     love.graphics.rectangle("fill", BTN_RESET_X, BTN_RESET_Y, BTN_RESET_LEN, BTN_RESET_HEI)
     love.graphics.setColor(WHITE)
-    love.graphics.print("RESET", BTN_RESET_X+4, BTN_RESET_Y+2)
+    love.graphics.print("RESET", BTN_RESET_X + 4 * SCALING_FACTOR, BTN_RESET_Y + 20 * SCALING_FACTOR, 0, SCALING_FACTOR, SCALING_FACTOR)
 end
 
 function draw_continue()
@@ -567,7 +591,7 @@ function draw_continue()
     end
     love.graphics.rectangle("fill", BTN_CONTINUE_X, BTN_CONTINUE_Y, BTN_CONTINUE_LEN, BTN_CONTINUE_HEI)
     love.graphics.setColor(WHITE)
-    love.graphics.print("CONTINUA", BTN_CONTINUE_X+3, BTN_CONTINUE_Y+2)
+    love.graphics.print("CONTINUA", BTN_CONTINUE_X + 3 * SCALING_FACTOR, BTN_CONTINUE_Y + 20 * SCALING_FACTOR, 0, SCALING_FACTOR, SCALING_FACTOR)
 end
 
 function draw_log_container()
@@ -580,32 +604,32 @@ function draw_log_messages()
         love.graphics.setColor(msg.color)
         local xtext = LOG_MSG_X
         local ytext = LOG_MSG_Y + (i-1) * LOG_MSG_YDIFF
-        love.graphics.print(msg.text, xtext, ytext)
+        love.graphics.print(msg.text, xtext, ytext, 0, SCALING_FACTOR, SCALING_FACTOR)
     end
 end
 
 function draw_stats()
     love.graphics.setColor(BLACK)
     local statline1 = "Nr. partite giocate: " .. GAME_ID
-    love.graphics.print(statline1, STATS_X, STATS_Y)
+    love.graphics.print(statline1, STATS_X, STATS_Y, 0, SCALING_FACTOR, SCALING_FACTOR)
     local pctw = 0.0
     if GAME_ID > 0 then
         pctw = W_PLAYER / GAME_ID
     end
     local statline2 = "Nr. partite vinte dal giocatore: " .. W_PLAYER .. string.format(" (%.2f", pctw*100) .. "%)"
-    love.graphics.print(statline2, STATS_X, STATS_Y + STATS_YDIFF)
+    love.graphics.print(statline2, STATS_X, STATS_Y + STATS_YDIFF, 0, SCALING_FACTOR, SCALING_FACTOR)
     if GAME_ID > 0 then
         pctw = 1 - pctw
     end
     local statline3 = "Nr. partite vinte dal computer: " .. (GAME_ID - W_PLAYER) .. string.format(" (%.2f", pctw*100) .. "%)"
-    love.graphics.print(statline3, STATS_X, STATS_Y + 2*STATS_YDIFF)
+    love.graphics.print(statline3, STATS_X, STATS_Y + 2*STATS_YDIFF, 0, SCALING_FACTOR, SCALING_FACTOR)
 end
 
 function draw_arrow(arrow)
     if arrow.to_x == arrow.from_x + BOARD.side then
-        arrow.to_x = arrow.to_x - 3
+        arrow.to_x = arrow.to_x - 3 * SCALING_FACTOR
     elseif arrow.to_x == arrow.from_x - BOARD.side then
-        arrow.to_x = arrow.to_x + 3
+        arrow.to_x = arrow.to_x + 3 * SCALING_FACTOR
     end
     love.graphics.setColor(arrow.color)
     love.graphics.setLineWidth(2)
@@ -651,7 +675,7 @@ function create_arrows(possible_moves, impossible_moves, select_id)
         to_ = center_of_cell(p.destination[1], p.destination[2])
         table.insert(ARROWS,{
             from_x = from_[1], from_y = from_[2], to_x = to_[1], to_y = to_[2],
-            point_length = 10, color = COLOR_IMPOSSIBLE_MOVE, type_arrow = "line",
+            point_length = 10 * SCALING_FACTOR, color = COLOR_IMPOSSIBLE_MOVE, type_arrow = "line",
             move_selected = false
         })
     end
@@ -699,11 +723,12 @@ function love.mousepressed(x, y, button)
         end
 
         --restart
-        if y>500 and y<570 and x>80 and x<140 then
+        if y>BTN_RESET_Y and y<BTN_RESET_Y+BTN_RESET_HEI and x>BTN_RESET_X and x<BTN_RESET_X+BTN_RESET_LEN then
             init_all()
         end
+        
         --continue
-        if y>550 and y<570 and x>160 and x<230 and GAME_ENDED then
+        if y>BTN_CONTINUE_Y and y<BTN_CONTINUE_Y+BTN_CONTINUE_HEI and x>BTN_CONTINUE_X and x<BTN_CONTINUE_X+BTN_CONTINUE_LEN and GAME_ENDED then
             init_game()
         end
     end
@@ -781,6 +806,10 @@ function love.update(dt)
         end
     end
 end
+
+-- function love.keypressed(key)
+--     if key == 
+-- end
 
 function debug_print_DB()
     for r, entries in pairs(DB_MOVES) do
